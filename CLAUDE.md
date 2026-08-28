@@ -10,8 +10,11 @@ Snapmaker_Orca is an open-source 3D slicer application forked from Bambu Studio,
 
 ### Building on Windows
 ```bash
-# Build everything
+# Build everything (VS2022 — preferred)
 build_release_vs2022.bat
+
+# Build everything (VS2019)
+build_release.bat
 
 # Build with debug symbols
 build_release_vs2022.bat debug
@@ -21,9 +24,9 @@ build_release_vs2022.bat deps
 
 # Build only slicer (after deps are built)
 build_release_vs2022.bat slicer
-
-
 ```
+
+Key CMake flags used in Windows builds: `-DBBL_RELEASE_TO_PUBLIC=1 -DORCA_TOOLS=ON`.
 
 ### Building on macOS
 ```bash
@@ -54,12 +57,13 @@ build_release_vs2022.bat slicer
 # Build dependencies and slicer
 ./build_linux.sh -dsi
 
-# Build everything (alternative)
-./build_linux.sh -dsi
+# Build slicer with tests
+./build_linux.sh -dst
 
 # Individual options:
 ./build_linux.sh -d    # dependencies only
-./build_linux.sh -s    # slicer only  
+./build_linux.sh -s    # slicer only
+./build_linux.sh -t    # build tests
 ./build_linux.sh -i    # build AppImage
 
 # Performance and debug options:
@@ -71,24 +75,27 @@ build_release_vs2022.bat slicer
 ./build_linux.sh -l    # use Clang instead of GCC
 ```
 
+Flatpak builds: `./build_flatpak.sh`
+
 ### Build System
 - Uses CMake with minimum version 3.13 (maximum 3.31.x on Windows)
-- Primary build directory: `build/`
+- Primary build directory: `build/` (or `build-dbg` for Debug, `build-dbginfo` for RelWithDebInfo on Windows)
 - Dependencies are built in `deps/build/`
 - The build process is split into dependency building and main application building
-- Windows builds use Visual Studio generators
+- Windows builds use Visual Studio generators (VS2019 or VS2022)
 - macOS builds use Xcode by default, Ninja with -x flag
 - Linux builds use Ninja generator
+- Version info is in `version.inc`
 
 ### Testing
 Tests are located in the `tests/` directory and use the Catch2 testing framework. Test structure:
-- `tests/libslic3r/` - Core library tests (21 test files)
+- `tests/libslic3r/` - Core library tests
   - Geometry processing, algorithms, file formats (STL, 3MF, AMF)
   - Polygon operations, clipper utilities, Voronoi diagrams
-- `tests/fff_print/` - Fused Filament Fabrication tests (12 test files)
+- `tests/fff_print/` - Fused Filament Fabrication tests
   - Slicing algorithms, G-code generation, print mechanics
   - Fill patterns, extrusion, support material
-- `tests/sla_print/` - Stereolithography tests (4 test files)
+- `tests/sla_print/` - Stereolithography tests
   - SLA-specific printing algorithms, support generation
 - `tests/libnest2d/` - 2D nesting algorithm tests
 - `tests/slic3rutils/` - Utility function tests
@@ -115,7 +122,7 @@ Run individual test suites:
 ## Architecture
 
 ### Core Libraries
-- **libslic3r/**: Core slicing engine and algorithms (platform-independent)
+- **src/libslic3r/**: Core slicing engine and algorithms (platform-independent)
   - Main slicing logic, geometry processing, G-code generation
   - Key classes: Print, PrintObject, Layer, GCode, Config
   - Modular design with specialized subdirectories:
@@ -128,13 +135,27 @@ Run individual test suites:
     - `Arachne/` - Advanced wall generation using skeletal trapezoidation
 
 - **src/slic3r/**: Main application framework and GUI
-  - GUI application built with wxWidgets
-  - Integration between libslic3r core and user interface
-  - Located in `src/slic3r/GUI/` (not shown in this directory but exists)
+  - `GUI/` - wxWidgets-based GUI (3D scene rendering, settings panels, bed display)
+  - `Config/` - Configuration handling
+  - `Utils/` - Application utilities
+
+- **src/mqtt/**: MQTT client for network communication with printers
+- **src/sentry_wrapper/**: Sentry crash reporting integration
+- **src/bury_cfg/**: Configuration management
+- **src/common_func/**: Shared common functions
+- **src/dev-utils/**: Development utilities
+
+### Web UI
+The application includes a Flutter-based web UI at `resources/web/`:
+- `resources/web/flutter_web/` - Flutter web application (versioned separately, e.g. `flutter_web_release_2.3.25`)
+- `resources/web/guide/` - User guide pages
+- `resources/web/homepage/` - Home page content
+- `resources/web/login/` - Login page
+- `resources/web/data/`, `resources/web/image/`, `resources/web/model/` - Web assets
 
 ### Key Algorithmic Components
 - **Arachne Wall Generation**: Variable-width perimeter generation using skeletal trapezoidation
-- **Tree Supports**: Organic support generation algorithm  
+- **Tree Supports**: Organic support generation algorithm
 - **Lightning Infill**: Sparse infill optimization for internal structures
 - **Adaptive Slicing**: Variable layer height based on geometry
 - **Multi-material**: Multi-extruder and soluble support processing
@@ -143,7 +164,7 @@ Run individual test suites:
 ### File Format Support
 - **3MF/BBS_3MF**: Native format with extensions for multi-material and metadata
 - **STL**: Standard tessellation language for 3D models
-- **AMF**: Additive Manufacturing Format with color/material support  
+- **AMF**: Additive Manufacturing Format with color/material support
 - **OBJ**: Wavefront OBJ with material definitions
 - **STEP**: CAD format support for precise geometry
 - **G-code**: Output format with extensive post-processing capabilities
@@ -162,12 +183,13 @@ Run individual test suites:
 
 ### Resources and Configuration
 - `resources/profiles/` - Printer and material profiles organized by manufacturer
-- `resources/printers/` - Printer-specific configurations and G-code templates  
+- `resources/printers/` - Printer-specific configurations and G-code templates
 - `resources/images/` - UI icons, logos, calibration images
 - `resources/calib/` - Calibration test patterns and data
 - `resources/handy_models/` - Built-in test models (benchy, calibration cubes)
+- `resources/web/` - Web-based UI assets (Flutter app, guide, homepage, login)
 
-### Internationalization and Localization  
+### Internationalization and Localization
 - `localization/i18n/` - Source translation files (.pot, .po)
 - `resources/i18n/` - Runtime language resources
 - Translation managed via `scripts/run_gettext.sh` / `scripts/run_gettext.bat`
@@ -180,75 +202,33 @@ Run individual test suites:
 
 ### Build and Development Tools
 - `cmake/modules/` - Custom CMake find modules and utilities
-- `scripts/` - Python utilities for profile generation and validation  
+- `scripts/` - Python utilities for profile generation and validation
 - `tools/` - Windows build tools (gettext utilities)
 - `deps/` - External dependency build configurations
+- `version.inc` - Version numbering (major, minor, patch)
 
-## Development Workflow
+## Code Conventions
 
-### Code Style and Standards
 - **C++17 standard** with selective C++20 features
 - **Naming conventions**: PascalCase for classes, snake_case for functions/variables
-- **Header guards**: Use `#pragma once` 
+- **Header guards**: Use `#pragma once`
 - **Memory management**: Prefer smart pointers, RAII patterns
 - **Thread safety**: Use TBB for parallelization, be mindful of shared state
-
-### Common Development Tasks
-
-#### Adding New Print Settings
-1. Define setting in `PrintConfig.cpp` with proper bounds and defaults
-2. Add UI controls in appropriate GUI components  
-3. Update serialization in config save/load
-4. Add tooltips and help text for user guidance
-5. Test with different printer profiles
-
-#### Modifying Slicing Algorithms  
-1. Core algorithms live in `libslic3r/` subdirectories
-2. Performance-critical code should be profiled and optimized
-3. Consider multi-threading implications (TBB integration)
-4. Validate changes don't break existing profiles
-5. Add regression tests where appropriate
-
-#### GUI Development
-1. GUI code resides in `src/slic3r/GUI/` (not visible in current tree)
-2. Use existing wxWidgets patterns and custom controls
-3. Support both light and dark themes
-4. Consider DPI scaling on high-resolution displays
-5. Maintain cross-platform compatibility
-
-#### Adding Printer Support
-1. Create JSON profile in `resources/profiles/[manufacturer].json`
-2. Add printer-specific start/end G-code templates
-3. Configure build volume, capabilities, and material compatibility
-4. Test thoroughly with actual hardware when possible
-5. Follow existing profile structure and naming conventions
-
-### Dependencies and Build System
-- **CMake-based** with separate dependency building phase
-- **Dependencies** built once in `deps/build/`, then linked to main application  
-- **Cross-platform** considerations important for all changes
-- **Resource files** embedded at build time, platform-specific handling
-
-### Performance Considerations
-- **Slicing algorithms** are CPU-intensive, profile before optimizing
-- **Memory usage** can be substantial with complex models
-- **Multi-threading** extensively used via TBB
-- **File I/O** optimized for large 3MF files with embedded textures
-- **Real-time preview** requires efficient mesh processing
 
 ## Important Development Notes
 
 ### Codebase Navigation
-- Use search tools extensively - codebase has 500k+ lines
+- Use search tools extensively — codebase has 500k+ lines
 - Key entry points: `src/Snapmaker_Orca.cpp` for application startup
-- Core slicing: `libslic3r/Print.cpp` orchestrates the slicing pipeline
+- Core slicing: `src/libslic3r/Print.cpp` orchestrates the slicing pipeline
 - Configuration: `PrintConfig.cpp` defines all print/printer/material settings
 
 ### Compatibility and Stability
 - **Backward compatibility** maintained for project files and profiles
-- **Cross-platform** support essential (Windows/macOS/Linux)  
+- **Cross-platform** support essential (Windows/macOS/Linux)
 - **File format** changes require careful version handling
 - **Profile migrations** needed when settings change significantly
+- **macOS minimum target**: 12.0 (Monterey)
 
 ### Quality and Testing
 - **Regression testing** important due to algorithm complexity
