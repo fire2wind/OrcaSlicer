@@ -403,6 +403,9 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
 
     if (surface->is_top() && !surface->is_internal() && params.config->top_surface_pattern.value != ipLightning && !polylines.empty())
         reorder_top_infill_polylines(polylines, this->angle, params.flow.width() / 0.45f);
+    else if (surface->surface_type == stInternalSolid && this->solid_under_top && !polylines.empty() &&
+             params.pattern != ipLightning)
+        reorder_top_infill_polylines(polylines, this->angle, params.flow.width() / 0.45f);
 
     if (!polylines.empty() || !thick_polylines.empty()) {
         // calculate actual flow from spacing (which might have been adjusted by the infill
